@@ -1,42 +1,73 @@
-import requests
-import pyperclip
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from tkinter import Tk
 from tkinter.filedialog import askopenfilename
-from urllib.parse import urlparse, parse_qs
+import pyperclip
+import time
+import os
 
-UPLOAD_URL = "https://issacos.online/drop.php"
+UPLOAD_URL = "https://issacos.online/index.php"  # Your upload page
 
-def upload_file(filepath):
+def upload_with_captcha(filepath):
+    options = webdriver.ChromeOptions()
+    options.add_argument("--start-maximized")
+    driver = webdriver.Chrome(options=options)
+
+    driver.get(UPLOAD_URL)
+
     try:
-        with open(filepath, 'rb') as f:
-            files = {'file': f}
-            response = requests.post(UPLOAD_URL, files=files, allow_redirects=False)
+        # Wait for file input to be present and visible
+        file_input = WebDriverWait(driver, 15).until(
+            EC.visibility_of_element_located((By.NAME, "file"))
+        )
 
-        if response.status_code in (302, 303):
-            redirect_url = response.headers.get('Location')
-            if redirect_url:
-                parsed = urlparse(redirect_url)
-                query = parse_qs(parsed.query)
-                link = query.get('link', [None])[0]
-                if link:
-                    print(f"Uploaded! Link: {link}")
-                    pyperclip.copy(link)
-                    print("Link copied to clipboard!")
-                    return True
-        print("Upload failed or unexpected response.")
-        return False
+        # Send the absolute file path
+        abs_path = os.path.abspath(filepath)
+        file_input.send_keys(abs_path)
+        print(f"Selected file: {abs_path}")
+
+        # Wait for the submit button (input or button) to be clickable
+        submit_button = WebDriverWait(driver, 15).until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, "input[type='submit'], button[type='submit']"))
+        )
+
+        print("Please solve the CAPTCHA in the browser window and submit the form.")
+
+        # Now wait for the URL to change indicating successful upload and redirect
+        WebDriverWait(driver, 300).until(
+            EC.url_contains("index.php?link=")
+        )
+
+        # Once URL contains the link param, extract it
+        current_url = driver.current_url
+        print(f"Upload complete! Redirected to: {current_url}")
+
+        from urllib.parse import urlparse, parse_qs
+        parsed = urlparse(current_url)
+        query = parse_qs(parsed.query)
+        link = query.get('link', [None])[0]
+
+        if link:
+            print(f"Download link: {link}")
+            pyperclip.copy(link)
+            print("Link copied to clipboard!")
+        else:
+            print("Download link parameter not found in URL.")
+
     except Exception as e:
-        print(f"Error: {e}")
-        return False
+        print(f"Error occurred: {e}")
+
+    finally:
+        # Optionally add a delay to let user see the final page before quit
+        time.sleep(3)
+        driver.quit()
 
 if __name__ == "__main__":
-    # Hide the main Tk window
     Tk().withdraw()
-
-    print("Select a file to upload...")
     filepath = askopenfilename()
-
-    if not filepath:
-        print("No file selected. Exiting.")
+    if filepath:
+        upload_with_captcha(filepath)
     else:
-        upload_file(filepath)
+        print("No file selected.")
