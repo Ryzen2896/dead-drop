@@ -8,7 +8,7 @@ import pyperclip
 import time
 import os
 
-UPLOAD_URL = "https://issacos.online/index.php"  # Your upload page
+UPLOAD_URL = "https://issacos.online/index.php" 
 
 def upload_with_captcha(filepath):
     options = webdriver.ChromeOptions()
